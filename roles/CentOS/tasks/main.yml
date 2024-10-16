@@ -1,0 +1,97 @@
+---
+- name: Install EPEL repository
+  yum:
+    name: epel-release
+    state: latest
+  when: ansible_distribution == "CentOS"
+
+- name: Downloading Prometheus
+  get_url:
+    url: https://github.com/prometheus/prometheus/releases/download/v2.42.0/prometheus-2.42.0.linux-amd64.tar.gz
+    dest: /tmp/prometheus.tar.gz
+  when: ansible_distribution == "CentOS"
+
+- name: Install Prometheus Dependencies
+  yum:
+    name:
+      - wget
+      - curl
+      - make
+      - gcc
+      - glibc
+    state: latest
+  when: ansible_distribution == "CentOS"
+
+- name: Extract Prometheus binary
+  unarchive:
+    src: /tmp/prometheus.tar.gz
+    dest: /usr/local/bin
+    remote_src: yes
+  when: ansible_distribution == "CentOS"
+
+- name: Moving the location of Prometheus binary
+  command: mv /usr/local/bin/prometheus-2.42.0.linux-amd64/{{ item }} /usr/local/bin
+  loop:
+    - prometheus
+    - promtool
+  when: ansible_distribution == "CentOS"
+
+- name: Create directories for Prometheus
+  file:
+    path: "{{item}}"
+    state: directory
+    owner: root
+    group: root
+  loop:
+    - /etc/prometheus
+    - /var/lib/prometheus
+
+- name: Create Prometheus configuration file
+  copy:
+    dest: /etc/prometheus/prometheus.yml
+    content: |
+      global:
+        scrape_interval: 15s
+
+      scrape_configs:
+        - job_name: 'prometheus'
+          static_configs:
+          - targets: ['localhost:9090']
+
+- name: Create Prometheus service file
+  copy:
+    dest: /etc/systemd/system/prometheus.service
+    content: |
+      [Unit]
+      Description=Prometheus
+      Wants=network-online.target
+      After=network-online.target
+
+      [Service]
+      ExecStart=/usr/local/bin/prometheus \
+        --config.file=/etc/prometheus/prometheus.yml \
+        --storage.tsdb.path=/var/lib/prometheus/
+
+      [Install]
+      WantedBy=multi-user.target
+
+- name: Changing permission for Prometheus and Promtool
+  file:
+    path:
+    - /usr/local/bin/prometheus
+    - /usr/local/bin/promtool
+    mode: '0755'
+    state: file
+
+- name: Check if Promtheus and Promtool exist
+  command: ls -l /usr/local/bin
+  register: ls-ouput
+
+- debug:
+    var: ls_output.stdout_lines 
+
+- name: Enable Prometheus service
+  command: /usr/local/bin/prometheus --config.file/etc/prometheus/prometheus.yml --storage.tsdb.path=/var/lib/prometheus &
+  async: 1
+  poll: 1
+  when: ansible_distribution == "CentOS"
