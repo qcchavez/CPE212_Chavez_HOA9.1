@@ -45,6 +45,7 @@
   loop:
     - /etc/prometheus
     - /var/lib/prometheus
+  when: ansible_distribution == "CentOS"
 
 - name: Create Prometheus configuration file
   copy:
@@ -57,6 +58,7 @@
         - job_name: 'prometheus'
           static_configs:
           - targets: ['localhost:9090']
+  when: ansible_distribution == "CentOS"
 
 - name: Create Prometheus service file
   copy:
@@ -68,30 +70,35 @@
       After=network-online.target
 
       [Service]
-      ExecStart=/usr/local/bin/prometheus \
-        --config.file=/etc/prometheus/prometheus.yml \
-        --storage.tsdb.path=/var/lib/prometheus/
+      ExecStart=/usr/local/bin/prometheus --config.file=/etc/prometheus/prometheus.yml --storage.tsdb.path=/var/lib/prometheus/
+      Restart=always
 
       [Install]
       WantedBy=multi-user.target
+  when: ansible_distribution == "CentOS"
+
+- name: Check if Prometheus exists
+  stat:
+    path: /usr/local/bin/prometheus
+  register: prometheus_stat
+
+- name: Check if Promtool exists
+  stat:
+    path: /usr/local/bin/promtool
+  register: promtool_stat
 
 - name: Changing permission for Prometheus and Promtool
   file:
-    path:
-    - /usr/local/bin/prometheus
-    - /usr/local/bin/promtool
+    path: /usr/local/bin/prometheus
     mode: '0755'
     state: file
+  when: ansible_distribution == "CentOS"
 
-- name: Check if Promtheus and Promtool exist
-  command: ls -l /usr/local/bin
-  register: ls-ouput
-
-- debug:
-    var: ls_output.stdout_lines 
+- name: Reload systemd
+  command: systemctl daemon-reload
 
 - name: Enable Prometheus service
-  command: /usr/local/bin/prometheus --config.file/etc/prometheus/prometheus.yml --storage.tsdb.path=/var/lib/prometheus &
-  async: 1
-  poll: 1
-  when: ansible_distribution == "CentOS"
+  systemd:
+    name: prometheus
+    enabled: yes
+    state: started
