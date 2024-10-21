@@ -5,13 +5,6 @@
     state: latest
   when: ansible_distribution == "Ubuntu"
 
-- name: Enable Prometheus service
-  service:
-    name: prometheus
-    state: restarted
-    enabled: true
-  when: ansible_distribution == "Ubuntu"
-
 - name: Install Prometheus dependencies
   apt:
     name:
@@ -20,4 +13,11 @@
     - wget
     - libgd-dev
     state: latest
+  when: ansible_distribution == "Ubuntu"
+
+- name: Enable Prometheus service
+  service:
+    name: prometheus
+    state: restarted
+    enabled: true
   when: ansible_distribution == "Ubuntu"
